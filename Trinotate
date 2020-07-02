@@ -19,7 +19,7 @@ my $usage = <<_EOUSAGE_;
          * Transdecoder protein search results:
 
              LOAD_swissprot_blastp <file>
-             LOAD_pfam <file>
+             LOAD_pfam <file> [--hmmsearch (optional)]
              LOAD_tmhmm <file>
              LOAD_signalp <file>
 
@@ -70,14 +70,14 @@ my $util_dir = "$FindBin::RealBin/util";
 my $loaders_dir = "$util_dir/trinotateSeqLoader";
 
 unless (@ARGV) {
-    @ARGV = (""); # to avoid error messages inusing $ARGV[0] below
+    @ARGV = (""); # to avoid error messages in using $ARGV[0] below
 }
 
 my %command_to_params = ( 
                           # protein-based
                           'LOAD_swissprot_blastp' => "$loaders_dir/Trinotate_BLAST_loader.pl --sqlite $sqlite_db --outfmt6 $ARGV[0] --prog blastp --dbtype Swissprot",
                           'LOAD_trembl_blastp' => "$loaders_dir/Trinotate_BLAST_loader.pl --sqlite $sqlite_db --outfmt6 $ARGV[0] --prog blastp --dbtype TrEMBL",
-                          'LOAD_pfam'  => "$loaders_dir/Trinotate_PFAM_loader.pl --sqlite $sqlite_db --pfam $ARGV[0]",
+                          'LOAD_pfam'  => "$loaders_dir/Trinotate_PFAM_loader.pl --sqlite $sqlite_db --pfam @ARGV",
                           'LOAD_tmhmm' => "$loaders_dir/Trinotate_TMHMM_loader.pl --sqlite $sqlite_db --tmhmm $ARGV[0]",
                           'LOAD_signalp' => "$loaders_dir/Trinotate_SIGNALP_loader.pl --sqlite $sqlite_db --signalp $ARGV[0]",
                           

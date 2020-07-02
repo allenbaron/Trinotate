@@ -22,6 +22,12 @@ my $usage = <<__EOUSAGE__;
 # --pfam <string>    pfam domain table output
 #
 ###########################################################################
+#
+# Optional:
+#
+# --hmmsearch        Indicate hmmsearch was used, instead of hmmscan
+#
+###########################################################################
 
 
 __EOUSAGE__
@@ -33,10 +39,12 @@ __EOUSAGE__
 
 my $sqlite_db;
 my $pfam_output;
+my $hmmsearch;
 my $help_flag;
 
 &GetOptions( 'sqlite=s' => \$sqlite_db,
              'pfam=s' => \$pfam_output,
+             'hmmsearch' => \$hmmsearch,
              
              'help|h' => \$help_flag,
     );
@@ -48,6 +56,11 @@ if ($help_flag) {
 
 unless ($sqlite_db && $pfam_output) {
     die $usage;
+}
+
+
+if ($hmmsearch) {
+    print "hmmsearch flag recognized\n";
 }
 
 
@@ -78,10 +91,22 @@ main: {
             next;
         }
         
-        my $QueryProtID = $x[3];
-        my $pfam_id = $x[1];
-        my $HMMERDomain = $x[0];
-        my $HMMERTDomainDescription = join(" ", @x[22..$#x]);
+        my $QueryProtID;
+        my $pfam_id;
+        my $HMMERDomain;
+        my $HMMERTDomainDescription;
+
+        if ($hmmsearch) {
+            $QueryProtID = $x[0];
+            $pfam_id = $x[4];
+            $HMMERDomain = $x[3];
+            $HMMERTDomainDescription = "";
+        } else {
+            $QueryProtID = $x[3];
+            $pfam_id = $x[1];
+            $HMMERDomain = $x[0];
+            $HMMERTDomainDescription = join(" ", @x[22..$#x]);
+        }
         my $QueryStartAlign = $x[17];
         my $QueryEndAlign = $x[18];
         my $PFAMStartAlign = $x[15];
