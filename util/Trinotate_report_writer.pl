@@ -307,7 +307,7 @@ sub get_pfam_info {
         foreach my $result (@pfam_results) {
             my ($pfam_id, $domain, $domain_descr, $start, $end, $evalue) = ($result->{pfam_id},
                                                                             $result->{HMMERDomain},
-                                                                            $result->{HMMERTDomainDescription},
+                                                                            $result->{pfam_domaindescription},
                                                                             $result->{QueryStartAlign},
                                                                             $result->{QueryEndAlign},
                                                                             $result->{ThisDomainEvalue});

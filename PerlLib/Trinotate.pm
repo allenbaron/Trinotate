@@ -65,7 +65,7 @@ sub get_pfam_info {
     }
     
     
-    my $query = "select pfam_id, HMMERDomain, HMMERTDomainDescription, QueryStartAlign, QueryEndAlign, ThisDomainEvalue, "
+    my $query = "select pfam_id, HMMERDomain, p.pfam_domaindescription, QueryStartAlign, QueryEndAlign, ThisDomainEvalue, "
         . " p.Domain_NoiseCutoff, p.Domain_GatheringCutOff, p.Domain_TrustedCutOff, "
         . " p.Sequence_NoiseCutoff, p.Sequence_GatheringCutOff, p.Sequence_TrustedCutOff "
         . " from HMMERDbase h, PFAMreference p"
@@ -101,14 +101,14 @@ sub get_pfam_info {
     
     foreach my $result (@results) {
         
-        my ($pfam_id, $HMMERDomain, $HMMERTDomainDescription, $QueryStartAlign, $QueryEndAlign, $ThisDomainEvalue,
+        my ($pfam_id, $HMMERDomain, $pfam_domaindescription, $QueryStartAlign, $QueryEndAlign, $ThisDomainEvalue,
             $Domain_NoiseCutoff, $Domain_GatheringCutoff, $Domain_TrustedCutoff,
             $Sequence_NoiseCutoff, $Sequence_GatheringCutoff, $Sequence_TrustedCutoff
             ) = @$result;
 
         my $struct = { 'pfam_id' => $pfam_id,
                        'HMMERDomain' => $HMMERDomain,
-                       'HMMERTDomainDescription' => $HMMERTDomainDescription,
+                       'pfam_domaindescription' => $pfam_domaindescription,
                        'QueryStartAlign' => $QueryStartAlign,
                        'QueryEndAlign' => $QueryEndAlign,
                        'ThisDomainEvalue' => $ThisDomainEvalue,

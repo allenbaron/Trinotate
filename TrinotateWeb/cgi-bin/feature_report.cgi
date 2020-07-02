@@ -316,7 +316,7 @@ sub get_browser_match_elements {
         
         foreach my $pfam_hit (@pfam_info) {
             my ($pfam_id, $domain_descr, $start, $end) = ($pfam_hit->{pfam_id},
-                                                          $pfam_hit->{HMMERTDomainDescription},
+                                                          $pfam_hit->{pfam_domaindescription},
                                                           $pfam_hit->{QueryStartAlign}, 
                                                           $pfam_hit->{QueryEndAlign});
             
