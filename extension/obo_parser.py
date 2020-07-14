@@ -68,8 +68,6 @@ def convert_obo_to_tsv(input_path, output_path=None, root_id=None, add_category_
         if add_category_column:
             compute_category_column(obo_records_dict, root_id=root_id)
 
-        print(root_id)
-
     # print stats and output .tsv
     print_stats(obo_records_dict, input_path)
 
@@ -117,7 +115,7 @@ def parse_obo_format(lines):
             raise ValueError("Unexpected line format: %s" % str(line))
 
         tag = match.group("tag")
-        value = match.group("value").strip()
+        value = match.group("value").strip().replace('"', "'")
 
         if tag == "id":
             current_record = collections.defaultdict(list)
