@@ -26,6 +26,7 @@ main: {
     }
     
     open ($ofh, ">$outfile") or die "Error, cannot write to $outfile";
+    print $ofh join("\t", "Accession", "LinkId", "AttributeType") . "\n";
     
     my $id;
     my $descr;
