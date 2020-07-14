@@ -43,7 +43,7 @@ my $sqlite_db;
 my $tax_dmp;
 my $go;
 my $uniref;
-my $prefix;
+my $prefix = "";
 my $cleanup_flag;
 
 &GetOptions(
@@ -126,7 +126,7 @@ main: {
     ## process gene ontology file
     if($go) {
         
-        $pipeliner->add_commands(new Command("python $EXTENSION_DIR/obo_parser/obo_parser.py \"$go\" > \"$go_output\"",
+        $pipeliner->add_commands(new Command("python $EXTENSION_DIR/obo_parser.py \"$go\" > \"$go_output\"",
                                              "$checkpoint_dir/parse_go.ok"));
     }
     
