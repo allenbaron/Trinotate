@@ -108,7 +108,6 @@ main: {
     }
 
     
-    my $tax_dir = $prefix;
     my $tax_output = $prefix . "taxonomyComplete.tsv";
     my $go_output = $prefix . "GOrelate.tsv";
     my $uniref_output = $prefix . "uniref_UPI.tsv";
@@ -117,14 +116,10 @@ main: {
     ## process NCBI new_taxdmp file
     if($tax_dmp) {
         
-        unless ($tax_dir =~ m/\/$/) {
-            $tax_dir =~ /.+\//;
-        }
-        
-        $pipeliner->add_commands(new Command("unzip \"$tax_dmp\" fullnamelineage.dmp nodes.dmp -d \"$tax_dir\"",
+        $pipeliner->add_commands(new Command("unzip \"$tax_dmp\" fullnamelineage.dmp nodes.dmp -d \"$checkpoint_dir\"",
                                              "$checkpoint_dir/unzip_tax_dmp.ok"));
         
-        $pipeliner->add_commands(new Command("Rscript $EXTENSION_DIR/NCBI_taxonomy_parser.R \"$tax_dir/fullnamelineage.dmp\" \"$tax_dir/nodes.dmp\" \"$tax_output\"",
+        $pipeliner->add_commands(new Command("Rscript $EXTENSION_DIR/NCBI_taxonomy_parser.R \"$checkpoint_dir/fullnamelineage.dmp\" \"$checkpoint_dir/nodes.dmp\" \"$tax_output\"",
                                              "$checkpoint_dir/parse_ncbi_tax.ok"));
     }
     
@@ -196,14 +191,12 @@ main: {
 
 
     # cleanup (intermediate output only if specified)
-    my @tmpfiles = ("$tax_dir/fullnamelineage.dmp", "$tax_dir/nodes.dmp");
-
     if ($cleanup_flag) {
-        push (@tmpfiles, $tax_output, $go_output, $uniref_output);
-    }
-    
-    foreach my $file (@tmpfiles) {
-        unlink($file);
+        my @tmpfiles = ($tax_output, $go_output, $uniref_output);
+
+        foreach my $file (@tmpfiles) {
+            unlink($file);
+        }
     }
     
     `rm -rf $checkpoint_dir`;
