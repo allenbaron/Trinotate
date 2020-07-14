@@ -1,0 +1,212 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib ("$FindBin::RealBin/PerlLib");
+use Pipeliner;
+use DBI;
+use Sqlite_connect;
+use DelimParser;
+
+use Getopt::Long qw(:config no_ignore_case bundling pass_through);
+
+my $EXTENSION_DIR = "$FindBin::RealBin/extension";
+
+my $usage = <<__EOUSAGE__;
+
+##################################################################
+#
+#  --sqlite <string>          name of sqlite database
+#
+#   AT LEAST ONE OF: 
+#       --tax_dmp <string>    path to NCBI new_taxdump.zip file
+#       --go <string>         path to gene ontology file (obo format, optionally .gz)
+#       --uniref <string>     path to UniRef[100|90|50].xml file (optionally .gz)
+#
+#   Other Options
+#       --create              whether to create taxonomyComplete and GOrelate tables
+#       --prefix <string>     prefix for intermediate parsed files
+#       --cleanup             whether to remove intermediate files (default = False)
+#       --help|h              this menu
+#
+##################################################################
+
+__EOUSAGE__
+
+    ;
+
+my $help_flag;
+my $create_flag;
+my $sqlite_db;
+my $tax_dmp;
+my $go;
+my $uniref;
+my $prefix;
+my $cleanup_flag;
+
+&GetOptions(
+    'help|h' => \$help_flag,
+    'create' => \$create_flag,
+    'sqlite=s' => \$sqlite_db,
+    'tax_dmp=s' => \$tax_dmp,
+    'go=s' => \$go,
+    'uniref=s' => \$uniref,
+    'prefix=s' => \$prefix,
+    'cleanup' => \$cleanup_flag,
+    );
+
+if ($help_flag) {
+    die $usage;
+}
+
+unless ($sqlite_db) {
+    die $usage;
+}
+
+unless ($tax_dmp || $go || $uniref) {
+    die $usage . "\n\n Select an action to perform.\n";
+}
+
+# taxonomy new_taxdump_2020-04-01.zip, ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/new_taxdump_2020-04-01.zip
+# go gene_ontology_edit.obo.2020-04-01, ftp://ftp.geneontology.org/go/ontology-archive/gene_ontology_edit.obo.2020-04-01.gz
+# uniref90 2020_02, ftp://ftp.uniprot.org/pub/databases/uniprot/previous_releases/release-2020_02/uniref/uniref2020_02.tar.gz
+
+main: {
+
+    my $checkpoint_dir = "__trino_chkpts";
+    
+    unless (-s $sqlite_db) {
+        die "Error, cannot find sqlite database: $sqlite_db ";
+    }
+    
+    my $pipeliner = new Pipeliner(-verbose => 2);
+
+    unless (-d $checkpoint_dir) {
+        mkdir $checkpoint_dir or die "Error, cannot mkdir $checkpoint_dir";
+    }
+
+
+    # Create tables, if don't exist
+
+    if ($create_flag) {
+        
+        my $dbh = DBI->connect( "dbi:SQLite:$sqlite_db" ) || die "Cannot connect: $DBI::errstr";
+        
+        ## NCBI taxonomy table
+        &RunMod($dbh, "create table taxonomyComplete(tax_id, name, unique_name, parent_tax_id, rank);");
+        &RunMod($dbh, "CREATE UNIQUE INDEX taxonomyComplete ON taxonomyComplete(tax_id)");
+
+        ## GO relationship table
+        &RunMod($dbh, "create table GOrelate(id, name, alt_id, children, comment,"
+                    .   "definition, parent_ids, namespace, relationship, subset, synonym, xref);");
+        &RunMod($dbh, "CREATE UNIQUE INDEX GOrelate ON GOrelate(id)");
+        
+        $dbh->disconnect();
+        
+    }
+
+    
+    my $tax_dir = $prefix;
+    my $tax_output = $prefix . "taxonomyComplete.tsv";
+    my $go_output = $prefix . "GOrelate.tsv";
+    my $uniref_output = $prefix . "uniref_UPI.tsv";
+    
+    
+    ## process NCBI new_taxdmp file
+    if($tax_dmp) {
+        
+        unless ($tax_dir =~ m/\/$/) {
+            $tax_dir =~ /.+\//;
+        }
+        
+        $pipeliner->add_commands(new Command("unzip \"$tax_dmp\" fullnamelineage.dmp nodes.dmp -d \"$tax_dir\"",
+                                             "$checkpoint_dir/unzip_tax_dmp.ok"));
+        
+        $pipeliner->add_commands(new Command("Rscript $EXTENSION_DIR/NCBI_taxonomy_parser.R \"$tax_dir/fullnamelineage.dmp\" \"$tax_dir/nodes.dmp\" \"$tax_output\"",
+                                             "$checkpoint_dir/parse_ncbi_tax.ok"));
+    }
+    
+    ## process gene ontology file
+    if($go) {
+        
+        $pipeliner->add_commands(new Command("python $EXTENSION_DIR/obo_parser/obo_parser.py \"$go\" > \"$go_output\"",
+                                             "$checkpoint_dir/parse_go.ok"));
+    }
+    
+    ## process UniRef90 XML file
+    if($uniref) {
+        $pipeliner->add_commands(new Command("perl $EXTENSION_DIR/UniRef_data_parser.pl \"$uniref\" \"$uniref_output\"",
+                                             "$checkpoint_dir/parse_uniref.ok") );
+    }
+
+    $pipeliner->run();
+
+    
+    ## Purge earlier stored results for data to load
+    
+    my $dbh = DBI->connect( "dbi:SQLite:$sqlite_db" ) || die "Cannot connect: $DBI::errstr";
+    
+    if($tax_dmp) {
+        $dbh->do("DELETE FROM taxonomyComplete") or die $!;
+    }
+    
+    if($go) {
+        $dbh->do("DELETE FROM GOrelate") or die $!;
+    }
+    
+    if($uniref) {
+        $dbh->do("DELETE FROM UniprotIndex WHERE Accession LIKE 'UniRef%'") or die $!;
+    }
+    
+    $dbh->disconnect();
+    
+    
+    # load in the data
+
+    if ($tax_dmp) {
+        
+        unless (-s $tax_output) {
+            die "Error, cannot locate file $tax_output";
+            
+        }
+        
+        &Sqlite_connect::bulk_load_sqlite($sqlite_db, "taxonomyComplete", $tax_output);
+    }
+    
+    if ($go) {
+
+        unless (-s $go_output) {
+            die "Error, cannot locate file $go_output";
+        }
+
+        &Sqlite_connect::bulk_load_sqlite($sqlite_db, "GOrelate", $go_output);
+    }
+    
+    if ($uniref) {
+        # parse uniprot dat file
+
+        unless (-s $uniref_output) {
+            die "Error, cannot locate file $uniref_output";
+        }
+        
+        &Sqlite_connect::bulk_load_sqlite($sqlite_db, "UniprotIndex", $uniref_output);
+    }
+
+
+    # cleanup (intermediate output only if specified)
+    my @tmpfiles = ("$tax_dir/fullnamelineage.dmp", "$tax_dir/nodes.dmp");
+
+    if ($cleanup_flag) {
+        push (@tmpfiles, $tax_output, $go_output, $uniref_output);
+    }
+    
+    foreach my $file (@tmpfiles) {
+        unlink($file);
+    }
+    
+    `rm -rf $checkpoint_dir`;
+    
+    exit(0);
+}
