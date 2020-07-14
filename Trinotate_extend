@@ -21,12 +21,12 @@ my $usage = <<__EOUSAGE__;
 #  --sqlite <string>          name of sqlite database
 #
 #   AT LEAST ONE OF: 
+#       --create              whether to create 'taxonomyComplete' and 'GOrelate' tables
 #       --tax_dmp <string>    path to NCBI new_taxdump.zip file
 #       --go <string>         path to gene ontology file (obo format, optionally .gz)
 #       --uniref <string>     path to UniRef[100|90|50].xml file (optionally .gz)
 #
 #   Other Options
-#       --create              whether to create taxonomyComplete and GOrelate tables
 #       --prefix <string>     prefix for intermediate parsed files
 #       --cleanup             whether to remove intermediate files (default = False)
 #       --help|h              this menu
@@ -65,7 +65,7 @@ unless ($sqlite_db) {
     die $usage;
 }
 
-unless ($tax_dmp || $go || $uniref) {
+unless ($tax_dmp || $go || $uniref || $create_flag) {
     die $usage . "\n\n Select an action to perform.\n";
 }
 
