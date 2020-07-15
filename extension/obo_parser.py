@@ -30,12 +30,6 @@ TAG_AND_VALUE_REGEX = "(?P<tag>[^:]+):(?P<value>[^!]+)"
 
 # column groups and re-mappings
 ONLY_ONE_ALLOWED_PER_STANZA = set(["id", "name", "def", "comment"])
-EXCLUDE_FROM_TSV = set(["consider", "replaced_by", "property_value", "is_obsolete", "is_anonymous"])
-RENAME_COLUMNS = {
-    'is_a': 'parent_ids',
-    'def': 'definition',
-}
-
 
 def convert_obo_to_tsv(input_path, output_path=None, root_id=None, add_category_column=False):
     """Main entry point for parsing an .obo file and converting it to a .tsv table.
@@ -314,24 +308,6 @@ def _open_input_stream(path):
     return line_iterator
 
 
-def _compute_tsv_header(obo_records):
-    """Compute .tsv file header as a list of strings containing all tags in the given obo_records
-
-    Args:
-        obo_records (iter): iterator over .obo records
-    """
-    all_tags = set()
-    for record in obo_records:
-        for tag in record:
-            all_tags.add(tag)
-
-    header = ['id', 'name']
-    other_columns = sorted(list(all_tags - set(EXCLUDE_FROM_TSV) - set(header)))
-    header.extend(other_columns)
-
-    return header
-
-
 def write_tsv(obo_records_dict, output_stream, root_id=None, separator=", "):
     """Write obo_records_dict to the given output_stream.
 
@@ -343,9 +319,7 @@ def write_tsv(obo_records_dict, output_stream, root_id=None, separator=", "):
         separator (str): separator for concatenating multiple values in a single column
     """
 
-    header = _compute_tsv_header(obo_records_dict.values())
-    output_stream.write("\t".join([RENAME_COLUMNS.get(column, column) for column in header]))
-    output_stream.write("\n")
+    header = ["id", "name", "is_a", "namespace", "def"]
 
     if root_id is not None:
         records = get_subtree(obo_records_dict, root_id)
