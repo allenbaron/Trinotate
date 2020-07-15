@@ -95,12 +95,11 @@ main: {
         my $dbh = DBI->connect( "dbi:SQLite:$sqlite_db" ) || die "Cannot connect: $DBI::errstr";
         
         ## NCBI taxonomy table
-        &RunMod($dbh, "create table taxonomyComplete(tax_id, name, unique_name, parent_tax_id, rank);");
+        &RunMod($dbh, "create table taxonomyComplete(tax_id, tax_name, rank, parent_tax_id, lineage);");
         &RunMod($dbh, "CREATE UNIQUE INDEX taxonomyComplete ON taxonomyComplete(tax_id)");
 
         ## GO relationship table
-        &RunMod($dbh, "create table GOrelate(id, name, alt_id, children, comment,"
-                    .   "definition, parent_ids, namespace, relationship, subset, synonym, xref);");
+        &RunMod($dbh, "create table GOrelate(go_id, go_name, go_parent_ids, namespace, definition);");
         &RunMod($dbh, "CREATE UNIQUE INDEX GOrelate ON GOrelate(id)");
         
         $dbh->disconnect();
