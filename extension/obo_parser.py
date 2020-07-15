@@ -31,17 +31,12 @@ TAG_AND_VALUE_REGEX = "(?P<tag>[^:]+):(?P<value>[^!]+)"
 # column groups and re-mappings
 ONLY_ONE_ALLOWED_PER_STANZA = set(["id", "name", "def", "comment"])
 
-def convert_obo_to_tsv(input_path, output_path=None, root_id=None, add_category_column=False):
+def convert_obo_to_tsv(input_path, output_path=None):
     """Main entry point for parsing an .obo file and converting it to a .tsv table.
 
     Args:
         input_path (str): .obo file url or local file path
         output_path (str): path where to write the .tsv file. Defaults to "-" which is standard out.
-        root_id (str): If specified, ignore ontology terms that are not either descendants of the
-            given id or have this id themselves. For example, 'HP:0000118'.
-        add_category_column (bool): Whether to add a 'category' column to the output .tsv file
-            which lists each term's top-level category. A top-level category is a term that's a
-            direct child of the ontology's root term.
     """
 
     # read in data
@@ -49,27 +44,14 @@ def convert_obo_to_tsv(input_path, output_path=None, root_id=None, add_category_
     with _open_input_stream(input_path) as input_stream:
         obo_records_dict = parse_obo_format(input_stream)
 
-    # find root term [default]
-    if root_id is None:
-        root_id = _compute_root_id(obo_records_dict)
-    elif root_id == "return_all":
-        root_id = None
-
-    if root_id is not None:
-        _confirm_id_is_valid(root_id, obo_records_dict, label="root_id")
-
-        # add 'category' columns to records, if root_id
-        if add_category_column:
-            compute_category_column(obo_records_dict, root_id=root_id)
-
     # print stats and output .tsv
     print_stats(obo_records_dict, input_path)
 
     if output_path is None:
-        write_tsv(obo_records_dict, output_stream=sys.stdout, root_id=root_id)
+        write_tsv(obo_records_dict, output_stream=sys.stdout)
     else:
         with open(output_path, "w") as output_stream:
-            write_tsv(obo_records_dict, output_stream, root_id=root_id)
+            write_tsv(obo_records_dict, output_stream)
 
     logger.info("Done")
 
@@ -124,9 +106,6 @@ def parse_obo_format(lines):
         else:
             current_record[tag].append(value)
 
-    # add a 'children' key and list of child ids to all records that have children
-    _compute_children_column(obo_records_dict)
-
     return obo_records_dict
 
 
@@ -162,125 +141,10 @@ def print_stats(obo_records_dict, input_path):
         logger.info(message % locals())
 
 
-def _compute_root_id(obo_records_dict):
-    """Finds the top-level term in the heirarchy.
-    NOTE: this implementation assumes the ontology has a single root term, and doesn't have cycles.
-    """
-
-    if not obo_records_dict:
-        return None
-
-    # start with a random id and walk up the heirarchy to find a term that doesn't have a parent
-    term_id = next(iter(obo_records_dict))
-    while True:
-        parent_ids = obo_records_dict[term_id].get("is_a")
-        if parent_ids is None or len(parent_ids) == 0:
-            return term_id
-
-        _confirm_id_is_valid(parent_ids[0], obo_records_dict, label="%s's parent id" % term_id)
-
-        term_id = parent_ids[0]
-
-
-def get_subtree(obo_records_dict, root_id, skip_record=None):
-    """Generates .obo records that are either descendants of the given root_id or the root record
-    itself.
-
-    Args:
-        obo_records_dict (dict): data structure returned by parse_obo_format(..)
-        root_id (str): Only ontology terms that are either descendants of the
-            given id or have this id themselves are returned. For example, 'HP:0000118'.
-        skip_record (function): A function which takes a record and returns True if the record (and
-            it's descendants) should be skipped.
-    Yields:
-        dict: .obo records
-    """
-
-    _confirm_id_is_valid(root_id, obo_records_dict, label='root_id')
-
-    ids_to_process = collections.deque([root_id])
-    processed_ids = set()
-    while ids_to_process:
-        next_id = ids_to_process.popleft()
-        record = obo_records_dict[next_id]
-        if next_id in processed_ids or (skip_record is not None and skip_record(record)):
-            continue
-
-        yield record
-
-        processed_ids.add(next_id)
-        child_ids = record.get('children', [])
-        ids_to_process.extend(child_ids)
-
 def yield_all(obo_records_dict):
     for key, value in obo_records_dict.items():
         record = value
         yield record
-
-def _compute_children_column(obo_records_dict):
-    """For each record that has child terms, compute a list of child term ids and store it in the
-    record under a new 'children' attribute.
-    """
-
-    for term_id, current_record in obo_records_dict.items():
-        if "is_a" not in current_record:
-            continue
-
-        for parent_id in current_record["is_a"]:
-            if parent_id not in obo_records_dict:
-                logger.warn("%s has a parent id %s which is not in the ontology" % (
-                    term_id, parent_id))
-                continue
-
-            parent_record = obo_records_dict[parent_id]
-            if 'children' not in parent_record:
-                parent_record['children'] = []
-
-            parent_record['children'].append(term_id)
-
-
-def compute_category_column(
-        obo_records_dict,
-        root_id,
-        add_category_id_column=True,
-        add_category_name_column=True):
-    """Adds a "category_id" and/or "category_name" column to each record that's a descendant of the
-    root term.
-
-    Args:
-        obo_records_dict (dict): data structure returned by parse_obo_format(..)
-        root_id (str): Only ontology terms that are either descendants of the
-            given id or have this id themselves are returned. For example, 'HP:0000118'.
-        add_category_id_column (bool): Whether to add a "category_id" to each record.
-        add_category_name_column (bool): Whether to add a "category_name" to each record.
-    """
-
-    _confirm_id_is_valid(root_id, obo_records_dict, label='root_id')
-
-    root_record = obo_records_dict[root_id]
-    root_child_ids = root_record.get('children', [])
-
-    if not root_child_ids:
-        logger.warn("root term has no child terms")
-        return
-
-    for category_id in root_child_ids:
-        category_name = obo_records_dict[category_id].get("name", "")
-
-        def is_category_already_assigned(record):
-            return 'category_id' in record or 'category_name' in record
-
-        category_subtree = get_subtree(
-            obo_records_dict,
-            root_id=category_id,
-            skip_record=is_category_already_assigned
-        )
-
-        for record in category_subtree:
-            if add_category_id_column:
-                record['category_id'] = category_id
-            if add_category_name_column:
-                record['category_name'] = category_name
 
 
 def _open_input_stream(path):
@@ -308,23 +172,17 @@ def _open_input_stream(path):
     return line_iterator
 
 
-def write_tsv(obo_records_dict, output_stream, root_id=None, separator=", "):
+def write_tsv(obo_records_dict, output_stream, separator=", "):
     """Write obo_records_dict to the given output_stream.
 
     Args:
         obo_records_dict (dict): data structure returned by parse_obo_format(..)
         output_stream (file): output stream where to write the .tsv file
-        root_id (str): Only ontology terms that are either descendants of the
-            given id or have this id themselves are returned. For example, 'HP:0000118'.
         separator (str): separator for concatenating multiple values in a single column
     """
 
     header = ["id", "name", "is_a", "namespace", "def"]
-
-    if root_id is not None:
-        records = get_subtree(obo_records_dict, root_id)
-    else:
-        records = yield_all(obo_records_dict)
+    records = yield_all(obo_records_dict)
 
     for record in records:
         row = []
@@ -340,13 +198,6 @@ def write_tsv(obo_records_dict, output_stream, root_id=None, separator=", "):
         output_stream.write("\n")
 
 
-def _confirm_id_is_valid(term_id, obo_records_dict, label="id"):
-    """Raises an exception if the given term id doesn't exist in the given obo_records_dict."""
-
-    if term_id not in obo_records_dict:
-        raise ValueError("%s '%s' not found in ontology" % (label, term_id))
-
-
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Parse an .obo file and write out a .tsv table")
     p.add_argument("-o", "--output-path", help="output .tsv file path. Defaults to standard out.")
@@ -354,10 +205,6 @@ if __name__ == "__main__":
         "either descendants of the given id or have this id themselves. For example: 'HP:0000118'.")
     p.add_argument("-a", "--return_all", action="store_true", help="Return all records instead of "
         "computing root-id [default], ignored if --root-id specified.")
-    p.add_argument("-c", "--add-category-column", action="store_true", help="add a 'category' "
-        "column to the output .tsv file which lists each term's top-level category. A top-level "
-        "category is a term that's a direct child of the ontology's root term. If --return_all "
-        "applies this is ignored.")
     p.add_argument("input_path", help=".obo file url or local file path. For example: "
         "http://purl.obolibrary.org/obo/hp.obo")
     p.add_argument("-v", "--verbose", action="store_true", help="Print stats and other info")
@@ -368,15 +215,10 @@ if __name__ == "__main__":
     else:
         logger.setLevel(logging.WARN)
 
-    if args.return_all and args.root_id is None:
-        args.root_id = "return_all"
-
 
     convert_obo_to_tsv(
         args.input_path,
-        output_path=args.output_path,
-        root_id=args.root_id,
-        add_category_column=args.add_category_column,
+        output_path=args.output_path
     )
 
 """
