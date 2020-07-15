@@ -69,4 +69,4 @@ test_that("fullnamelineage & nodes join correct", {
 
 # Save --------------------------------------------------------------------
 
-readr::write_tsv(tax_df, out_path)
+readr::write_tsv(tax_df, out_path, col_names = FALSE)
