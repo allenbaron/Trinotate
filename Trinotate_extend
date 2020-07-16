@@ -91,16 +91,16 @@ main: {
     # Create tables, if don't exist
 
     if ($create_flag) {
-        
+        print "Creating taxonomyComplete and GOrelate tables and indexes\n";
         my $dbh = DBI->connect( "dbi:SQLite:$sqlite_db" ) || die "Cannot connect: $DBI::errstr";
         
         ## NCBI taxonomy table
         &RunMod($dbh, "create table taxonomyComplete(tax_id, tax_name, rank, parent_tax_id, lineage);");
-        &RunMod($dbh, "CREATE UNIQUE INDEX taxonomyComplete ON taxonomyComplete(tax_id)");
+        &RunMod($dbh, "CREATE UNIQUE INDEX taxComp_id ON taxonomyComplete(tax_id)");
 
         ## GO relationship table
         &RunMod($dbh, "create table GOrelate(go_id, go_name, go_parent_ids, namespace, definition);");
-        &RunMod($dbh, "CREATE UNIQUE INDEX GOrelate ON GOrelate(id)");
+        &RunMod($dbh, "CREATE UNIQUE INDEX GOrel_id ON GOrelate(go_id)");
         
         $dbh->disconnect();
         
