@@ -17,7 +17,7 @@ use DBI;
 our @ISA = qw(Exporter);
 
 ## export the following for general use
-our @EXPORT = qw ($QUERYFAIL do_sql do_sql_first_row do_sql_2D connect_to_db RunMod first_result_sql very_first_result_sql AutoCommit bulk_load_sqlite);
+our @EXPORT = qw ($QUERYFAIL do_sql do_sql_first_row do_sql_2D do_sql2array connect_to_db RunMod first_result_sql very_first_result_sql AutoCommit bulk_load_sqlite);
 
 our $QUERYFAIL = 0; #intialize.  Status flag, indicating the success of a query.
 
@@ -193,5 +193,52 @@ sub bulk_load_sqlite {
     return;
 }
 
+sub do_sql2array {
+    my ($dbproc,$query, @values) = @_;
+    my ($statementHandle,@x,@results);
+    my ($i,$result,$col);
+
+    eval {
+
+        ## Use $QUERYFAIL Global variable to detect query failures.
+        $QUERYFAIL = 0; #initialize
+        print STDERR "QUERY: $query\tVALUES: @values\n" if($::DEBUG||$::SEE);
+        $statementHandle = $dbproc->prepare($query);
+        if ( !defined $statementHandle) {
+            print STDERR "Cannot prepare statement: $DBI::errstr\n";
+            $QUERYFAIL = 1;
+        } else {
+
+            # Keep trying to query thru deadlocks:
+            do {
+                $QUERYFAIL = 0; #initialize
+                eval {
+                    $statementHandle->execute(@values) or die $!;
+                    $statementHandle->bind_col(1, \$col);
+                    while ($statementHandle->fetch() ) {
+                        push(@results,$col);
+                    }
+                };
+                ## exception handling code:
+                if ($@) {
+                    print STDERR "failed query: <$query>\tvalues: @values\nErrors: $DBI::errstr\n";
+                    $QUERYFAIL = 1;
+                }
+
+            } while ($statementHandle->errstr() =~ /deadlock/);
+            #release the statement handle resources
+            $statementHandle->finish;
+        }
+        if ($QUERYFAIL) {
+            confess "Failed query: <$query>\tvalues: @values\nErrors: $DBI::errstr\n";
+        }
+    };
+
+    if ($@) {
+        confess $@;
+    }
+
+    return(@results);
+}
 
 1; #EOM
