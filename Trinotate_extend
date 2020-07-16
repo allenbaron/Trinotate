@@ -21,7 +21,7 @@ my $usage = <<__EOUSAGE__;
 #  --sqlite <string>          name of sqlite database
 #
 #   AT LEAST ONE OF: 
-#       --create              whether to create 'taxonomyComplete' and 'GOrelate' tables
+#       --create              create 'taxonomyComplete', 'GOrelate', and 'UniRefIndex' tables
 #       --tax_dmp <string>    path to NCBI new_taxdump.zip file
 #       --go <string>         path to gene ontology file (obo format, optionally .gz)
 #       --uniref <string>     path to UniRef[100|90|50].xml file (optionally .gz)
@@ -102,37 +102,46 @@ main: {
         &RunMod($dbh, "create table GOrelate(go_id, go_name, go_parent_ids, namespace, definition);");
         &RunMod($dbh, "CREATE UNIQUE INDEX GOrel_id ON GOrelate(go_id)");
         
+        ## UniRefIndex table
+        &RunMod($dbh, "create table UniRefIndex(Accession,LinkId,AttributeType);");
+        &RunMod($dbh, "CREATE INDEX UniRefAccession ON UniRefIndex(Accession)");
+
         $dbh->disconnect();
         
     }
 
-    
+
     my $tax_output = $prefix . "taxonomyComplete.tsv";
     my $go_output = $prefix . "GOrelate.tsv";
-    my $uniref_output = $prefix . "uniref_UPI.tsv";
-    
-    
+    (my $uniref_prefix) = $uniref =~ m/(uniref[0-9]{2,3}).xml/i;
+    my $uniref_parsed = $prefix . $uniref_prefix . "_idx_complete.tsv";
+    my $uniref_output = $prefix . $uniref_prefix . "_idx_reduced.tsv";
+
+
     ## process NCBI new_taxdmp file
     if($tax_dmp) {
-        
+
         $pipeliner->add_commands(new Command("unzip \"$tax_dmp\" fullnamelineage.dmp nodes.dmp -d \"$checkpoint_dir\"",
                                              "$checkpoint_dir/unzip_tax_dmp.ok"));
-        
-        $pipeliner->add_commands(new Command("Rscript $EXTENSION_DIR/NCBI_taxonomy_parser.R \"$checkpoint_dir/fullnamelineage.dmp\" \"$checkpoint_dir/nodes.dmp\" \"$tax_output\"",
+
+        $pipeliner->add_commands(new Command("$EXTENSION_DIR/NCBI_taxonomy_parser.R \"$checkpoint_dir/fullnamelineage.dmp\" \"$checkpoint_dir/nodes.dmp\" \"$tax_output\"",
                                              "$checkpoint_dir/parse_ncbi_tax.ok"));
     }
-    
+
     ## process gene ontology file
     if($go) {
-        
-        $pipeliner->add_commands(new Command("python $EXTENSION_DIR/obo_parser.py \"$go\" > \"$go_output\"",
+
+        $pipeliner->add_commands(new Command("$EXTENSION_DIR/obo_parser.py \"$go\" > \"$go_output\"",
                                              "$checkpoint_dir/parse_go.ok"));
     }
-    
+
     ## process UniRef90 XML file
     if($uniref) {
-        $pipeliner->add_commands(new Command("perl $EXTENSION_DIR/UniRef_data_parser.pl \"$uniref\" \"$uniref_output\"",
+        $pipeliner->add_commands(new Command("$EXTENSION_DIR/UniRef_data_parser.pl \"$uniref\" \"$uniref_parsed\"",
                                              "$checkpoint_dir/parse_uniref.ok") );
+
+        $pipeliner->add_commands(new Command("$EXTENSION_DIR/UniRef_data_reducer.pl \"$sqlite_db\" \"$uniref_parsed\" \"$uniref_output\"",
+                                             "$checkpoint_dir/reduce_uniref.ok") );
     }
 
     $pipeliner->run();
@@ -153,8 +162,8 @@ main: {
     }
     
     if($uniref) {
-        print "* Removing previously loaded UniRef data from UniprotIndex\n";
-        $dbh->do("DELETE FROM UniprotIndex WHERE Accession LIKE 'UniRef%'") or die $!;
+        print "* Removing previously loaded UniRef data from UniRefIndex\n";
+        $dbh->do("DELETE FROM UniRefIndex") or die $!;
     }
     
     $dbh->disconnect();
@@ -190,7 +199,7 @@ main: {
             die "Error, cannot locate file $uniref_output";
         }
         
-        &Sqlite_connect::bulk_load_sqlite($sqlite_db, "UniprotIndex", $uniref_output);
+        &Sqlite_connect::bulk_load_sqlite($sqlite_db, "UniRefIndex", $uniref_output);
         print "\n";
     }
 
@@ -199,7 +208,7 @@ main: {
     print "* Cleaning up\n";
 
     if ($cleanup_flag) {
-        my @tmpfiles = ($tax_output, $go_output, $uniref_output);
+        my @tmpfiles = ($tax_output, $go_output, $uniref_parsed, $uniref_output);
 
         foreach my $file (@tmpfiles) {
             unlink($file);
