@@ -91,7 +91,7 @@ main: {
     # Create tables, if don't exist
 
     if ($create_flag) {
-        print "Creating taxonomyComplete and GOrelate tables and indexes\n";
+        print "Creating taxonomyComplete, GOrelate, and UniRefIndex tables and indexes\n";
         my $dbh = DBI->connect( "dbi:SQLite:$sqlite_db" ) || die "Cannot connect: $DBI::errstr";
         
         ## NCBI taxonomy table

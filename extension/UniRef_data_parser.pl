@@ -25,7 +25,7 @@ main: {
         open ($fh, $xml_file) or die "Error, cannot open file $xml_file";
     }
     
-    open ($ofh, ">$outfile") or die "Error, cannot write to $outfile";
+    open ($ofh, " | gzip -c > $outfile.gz") or die "Error, cannot write to $outfile.gz";
     
     my $id;
     my $descr;
