@@ -21,7 +21,7 @@ my $usage = <<__EOUSAGE__;
 #  --sqlite <string>          name of sqlite database
 #
 #   AT LEAST ONE OF: 
-#       --create              create 'taxonomyComplete', 'GOrelate', and 'UniRefIndex' tables
+#       --create              create 'taxonomyComplete' and 'GOrelate' tables
 #       --tax_dmp <string>    path to NCBI new_taxdump.zip file
 #       --go <string>         path to gene ontology file (obo format, optionally .gz)
 #       --uniref <string>     path to UniRef[100|90|50].xml file (optionally .gz)
@@ -102,10 +102,6 @@ main: {
         &RunMod($dbh, "create table GOrelate(go_id, go_name, go_parent_ids, namespace, definition);");
         &RunMod($dbh, "CREATE UNIQUE INDEX GOrel_id ON GOrelate(go_id)");
         
-        ## UniRefIndex table
-        &RunMod($dbh, "create table UniRefIndex(Accession,LinkId,AttributeType);");
-        &RunMod($dbh, "CREATE INDEX UniRefAccession ON UniRefIndex(Accession)");
-
         $dbh->disconnect();
         
     }
@@ -162,8 +158,8 @@ main: {
     }
     
     if($uniref) {
-        print "* Removing previously loaded UniRef data from UniRefIndex\n";
-        $dbh->do("DELETE FROM UniRefIndex") or die $!;
+        print "* Removing previously loaded UniRef data from UniprotIndex\n";
+        $dbh->do("DELETE FROM UniprotIndex WHERE Accession LIKE 'UniRef%'") or die $!;
     }
     
     $dbh->disconnect();
@@ -199,7 +195,7 @@ main: {
             die "Error, cannot locate file $uniref_output";
         }
         
-        &Sqlite_connect::bulk_load_sqlite($sqlite_db, "UniRefIndex", $uniref_output);
+        &Sqlite_connect::bulk_load_sqlite($sqlite_db, "UniprotIndex", $uniref_output);
         print "\n";
     }
 
