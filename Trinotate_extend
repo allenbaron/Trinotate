@@ -109,9 +109,15 @@ main: {
 
     my $tax_output = $prefix . "taxonomyComplete.tsv";
     my $go_output = $prefix . "GOrelate.tsv";
-    (my $uniref_prefix) = $uniref =~ m/(uniref[0-9]{2,3}).xml/i;
-    my $uniref_parsed = $prefix . $uniref_prefix . "_idx_complete.tsv";
-    my $uniref_output = $prefix . $uniref_prefix . "_idx_reduced.tsv";
+    my $uniref_prefix;
+    my $uniref_parsed;
+    my $uniref_output;
+
+    if($uniref) {
+        ($uniref_prefix) = $uniref =~ m/(uniref[0-9]{2,3}).xml/i;
+        $uniref_parsed = $prefix . $uniref_prefix . "_idx_complete.tsv";
+        $uniref_output = $prefix . $uniref_prefix . "_idx_reduced.tsv";
+    }
 
 
     ## process NCBI new_taxdmp file
